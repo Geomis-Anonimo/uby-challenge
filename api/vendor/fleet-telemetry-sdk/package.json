@@ -1,0 +1,9 @@
+{
+  "name": "@fleetlink/telemetry-sdk",
+  "version": "7.4.2",
+  "description": "FleetLink telemetry SDK - position codec, batch uploader and protocol utilities",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "engines": { "node": ">=18" }
+}

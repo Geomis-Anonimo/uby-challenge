@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mobilidade · Bancada de teste de campo</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+  <header class="barra">
+    <div class="marca">
+      <span class="ponto"></span>
+      <div>
+        <h1>Bancada de teste de campo</h1>
+        <p>Simulação de motoristas em operação — Muzambinho / MG</p>
+      </div>
+    </div>
+
+    <div class="painel">
+      <div class="metrica">
+        <label>Tempo de teste</label>
+        <strong id="m-tempo">00:00</strong>
+      </div>
+      <div class="metrica">
+        <label>Corridas concluídas</label>
+        <strong id="m-corridas">0 / 6</strong>
+      </div>
+      <div class="metrica destaque">
+        <label>Custo do turno (motoristas)</label>
+        <strong id="m-custo">R$ 0,00</strong>
+      </div>
+      <div class="metrica">
+        <label>Franquia média restante</label>
+        <strong id="m-franquia">100%</strong>
+      </div>
+      <div class="metrica">
+        <label>Escala</label>
+        <strong id="m-escala">×60</strong>
+      </div>
+      <button id="btn-teste" class="botao">Iniciar teste</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="grade" class="grade"></div>
+
+    <section class="rodape">
+      <div class="legenda">
+        <span><i class="chip chip-ok"></i> motorista deste aparelho</span>
+        <span><i class="chip chip-outro"></i> outros motoristas na malha</span>
+        <span><i class="chip chip-rota"></i> rota da corrida</span>
+      </div>
+      <p class="aviso" id="aviso">Aguardando início do teste.</p>
+    </section>
+  </main>
+
+  <template id="tpl-telefone">
+    <div class="telefone">
+      <div class="moldura">
+        <div class="statusbar">
+          <span class="hora">09:41</span>
+          <span class="operadora" data-operadora>4G</span>
+          <span class="bateria"></span>
+        </div>
+
+        <canvas class="mapa" width="252" height="392"></canvas>
+
+        <div class="sheet">
+          <div class="linha">
+            <div class="avatar" data-inicial>M</div>
+            <div class="ident">
+              <strong data-nome>Motorista</strong>
+              <span data-veiculo>—</span>
+            </div>
+            <div class="nota" data-nota>5.0</div>
+          </div>
+
+          <div class="progresso">
+            <div class="barra-progresso"><i data-progresso style="width:0%"></i></div>
+            <div class="linha-tempo">
+              <span data-etapa>Aguardando</span>
+              <span data-eta>—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="consumo">
+        <div class="consumo-linha">
+          <label>Custo do turno</label>
+          <strong data-custo>R$ 0,00</strong>
+        </div>
+        <div class="franquia">
+          <div class="franquia-barra"><i data-franquia-barra style="width:100%"></i></div>
+          <div class="franquia-legenda">
+            <span data-franquia>franquia 100%</span>
+            <span data-esgota>—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/mapa.js"></script>
+  <script src="js/telefone.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
