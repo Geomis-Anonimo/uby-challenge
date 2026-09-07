@@ -12,7 +12,8 @@ motorista (nome, e-mail, CPF, telefone, conta bancária) que o app nem usa.
 
 Tinha um segundo ponto com o mesmo defeito: o `PainelService` mandava as 150
 corridas mais recentes (`SELECT *`, linha inteira) para todos os sockets, de 2 em
-2 segundos — e **nenhum cliente escuta esse evento** (`city.summary`).
+2 segundos — e **nenhum cliente escuta esse evento** (`city.summary`), mas como é
+só um recorte do código completo nem mexi nisso.
 
 O coletor de telemetria (a "linha de saída do provedor") movimenta ~19 KB no
 total — não é ele. O peso está no que o servidor empurra pelos sockets.
