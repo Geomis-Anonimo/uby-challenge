@@ -106,9 +106,7 @@ termômetro.
 
 ## Ainda dá para melhorar (não entrou aqui)
 
-- `driver.positions` devia mandar só `{driverId, latitude, longitude, heading}`.
-- `io.emit` → salas: `city:<id>` para o mapa, uma sala de painel para
-  `city.summary`, `trip:<ref>` para acompanhamento de corrida.
+- `driver.positions` devia mandar só `{driverId, latitude, longitude, heading}`, só o necessário.
 - `DriverRepository.listarOnline` usa `redis KEYS` no caminho quente — trocar por
   um índice (`SADD driver:online:<city>`).
 
