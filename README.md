@@ -20,35 +20,24 @@ total — não é ele. O peso está no que o servidor empurra pelos sockets.
 
 ## Como cheguei nisso
 
-1. Abri a bancada (`http://localhost:8080`), cliquei em **Iniciar teste**. A
+1. Abri a Tela (`http://localhost:8080`), cliquei em **Iniciar teste**. A
    barra de franquia de cada aparelho derretia; o "esgota em" dava poucos minutos
    de turno.
 2. **DevTools → Network → filtro `socket.io`.** Os 6 aparelhos da bancada usam
-   long-polling (os `driverId` são `3, 6, 9, 12, 15, 18` — todos múltiplos de 3,
-   e o [telefone.js](web/public/js/telefone.js) força `polling` nesse caso), então
-   não há aba "Messages" — o conteúdo está no corpo das respostas
-   `...&transport=polling&sid=...`, que se repetem várias vezes por segundo.
-   Abrindo uma: `42["driver.positions",[ ...frota inteira... ]]`, ~7 KB cada; e
-   `42["city.summary",{...}]`, ~70 KB, de 2 em 2s.
-3. **`docker stats`** com o teste rodando: o container `frota` (que fala com a
+   long-polling e o [telefone.js](web/public/js/telefone.js) força `polling`
+   nesse caso), então não tem aba "Messages" do websocket,o conteúdo está no
+   corpo das respostas `...&transport=polling&sid=...`, que se repetem várias
+   vezes por segundo. Abrindo uma: `42["driver.positions",[ ...frota inteira... ]]`,
+   ~7 KB cada; e `42["city.summary",{...}]`, ~70 KB, de 2 em 2s.
+4. **`docker stats`** com o teste rodando: o container `frota` (que fala com a
    API do mesmo jeito que o app real) recebe muito mais do que envia — sobe um
    ponto de GPS, recebe a cidade inteira de volta.
-4. Medi com um script — ver [Como reproduzir a medição](#como-reproduzir-a-medição).
-5. Busquei `driver.positions` no projeto (`grep -rn` ou Ctrl+Shift+F no VSCode):
+5. Medi com um script — ver [Como reproduzir a medição](#como-reproduzir-a-medição).
+6. Busquei `driver.positions` no projeto (`grep -rn` ou Ctrl+Shift+F no VSCode):
    só sai de `EventsEmitter.emitEvent` (que é `io.emit`), chamado em
    `aoReceberPosicao` — o handler do evento `driver.location`, que roda a cada ping.
-6. Confirmei ligando/desligando: com `POSICOES_BROADCAST_MS=0` o servidor volta a
+7. Confirmei ligando/desligando: com `POSICOES_BROADCAST_MS=0` o servidor volta a
    emitir a cada ping e o consumo volta para ~8 GB/dia. Mesmo binário, só o env.
-
-### Por que não achei "a rota" no `main.ts`
-
-Não existe rota. `new Server(servidor)` no [main.ts](api/src/main.ts) faz o
-Socket.IO grudar no servidor HTTP e interceptar tudo que começa com `/socket.io/`
-antes do Express. Com Socket.IO o "endpoint" é o **nome do evento**: o cliente
-faz `socket.emit('driver.location', {...})`, e no servidor o
-`client.on('driver.location', ...)` registrado no `aoConectar` chama o
-`aoReceberPosicao`. A URL `/socket.io/?driverId=6&...` é só o cano — os
-parâmetros `driverId/latitude/longitude` chegam como `client.handshake.query`.
 
 ## O que mudei
 
@@ -76,15 +65,6 @@ if (agora - (this.ultimoBroadcast.get(pos.cityId) ?? 0) >= this.broadcastMs) {
 
 `POSICOES_BROADCAST_MS: 500` no [docker-compose.yml](docker-compose.yml).
 
-### 2. `PainelService` desligado
-
-[api/src/main.ts](api/src/main.ts) — comentei o `painelService.iniciar(...)`.
-
-Ninguém escuta `city.summary` neste recorte, então era `SELECT` no banco +
-broadcast de ~70 KB para todo aparelho, de 2 em 2s, sem consumidor. Quando
-existir um painel de verdade, ele volta com canal próprio (uma sala do
-Socket.IO), não por `io.emit` geral.
-
 ## O efeito
 
 Medido com 20 motoristas de fundo, 1 aparelho só recebendo, 20s:
@@ -94,7 +74,7 @@ Medido com 20 motoristas de fundo, 1 aparelho só recebendo, 20s:
 | antes | ~102 KiB/s → **~8,4 GB/dia** |
 | depois | ~9,5 KiB/s → **~0,8 GB/dia** |
 
-~11x menos. Sem diferença perceptível no mapa: o app calcula a própria posição
+Mais ou menos 10x menos. Sem diferença perceptível no mapa: o app calcula a própria posição
 pela rota local; `driver.positions` só desenha os outros carros como pontinhos, e
 atualizar isso ~2x/s em vez de ~10x/s não muda nada na tela.
 
@@ -113,34 +93,9 @@ docker stats --no-stream mob-frota mob-api
 ```
 
 Olhe o `NET I/O` do `mob-frota` (os 20 "apps"): recebido bem maior que enviado.
-Para comparar antes/depois, suba o commit anterior vs este.
-
-**Preciso — script cliente** (usa o `socket.io-client` que já vem na imagem):
-
-```bash
-cat > /tmp/medir.mjs <<'EOF'
-import { io } from 'socket.io-client';
-const s = io('http://api:3000', { transports: ['websocket'],
-  query: { driverId: '3', latitude: '-21.3767', longitude: '-46.5253' } });
-const acc = new Map(); let total = 0; const t0 = Date.now();
-s.onAny((ev, ...a) => {
-  const b = a.reduce((x, v) => x + Buffer.byteLength(JSON.stringify(v ?? null)), 0);
-  const e = acc.get(ev) ?? { n: 0, b: 0 }; e.n++; e.b += b; acc.set(ev, e); total += b;
-});
-setTimeout(() => {
-  const sec = (Date.now() - t0) / 1000;
-  for (const [ev, e] of acc) console.log(ev, e.n + ' msgs', (e.b / 1024).toFixed(1) + ' KiB');
-  const k = total / 1024 / sec;
-  console.log(`${k.toFixed(1)} KiB/s  ->  ${(k * 86400 / 1e6).toFixed(2)} GB/dia`);
-  process.exit(0);
-}, 20000);
-EOF
-docker cp /tmp/medir.mjs mob-api:/app/medir.mjs
-docker compose exec -w /app api node medir.mjs
-```
 
 **Provar que é a causa:** troque para `POSICOES_BROADCAST_MS: 0` no compose,
-`docker compose up -d api`, rode o script de novo — volta para ~8 GB/dia. Depois
+`docker compose up -d api`, rode o script de novo — volta a aumentar. Depois
 devolva para `500`.
 
 **No navegador:** DevTools → Network → filtro `socket.io`. Como a bancada usa
@@ -149,22 +104,6 @@ alguns KB cada) ou só o contador "N requests / X transferred" no rodapé do pai
 Network durante 10s. O medidor de franquia da própria bancada também serve de
 termômetro.
 
-## Decisões
-
-- **Throttle no servidor, não no cliente.** O gargalo é 1 emit → N sockets.
-  Mexer no app não reduz a saída do servidor e exigiria atualizar o app de todo
-  motorista.
-- **Coalescer por cidade, dentro do próprio handler do ping**, em vez de um
-  `setInterval` separado: não precisa descobrir quais cidades têm gente online, e
-  ambiente ocioso = zero broadcast.
-- **`io.emit` continua global** (sem sala) nesta entrega. Neste recorte todo
-  socket conectado é motorista da mesma cidade, então escopar em sala não muda a
-  plateia hoje — é ganho para produção (passageiro, painel) e fica para depois.
-- **Intervalo como variável de ambiente** para ajustar por ambiente sem deploy
-  (default 1000 ms no código, 500 ms no compose).
-- **Não mexi no payload.** Tirar CPF/e-mail/telefone/conta do `driver.positions`
-  é mudança de contrato e questão de dado pessoal — trato separado.
-
 ## Ainda dá para melhorar (não entrou aqui)
 
 - `driver.positions` devia mandar só `{driverId, latitude, longitude, heading}`.
@@ -172,16 +111,6 @@ termômetro.
   `city.summary`, `trip:<ref>` para acompanhamento de corrida.
 - `DriverRepository.listarOnline` usa `redis KEYS` no caminho quente — trocar por
   um índice (`SADD driver:online:<city>`).
-- `TelemetryService.acompanhar` cria um `setInterval` por socket e nunca o limpa
-  no disconnect — vaza memória com a frota reconectando.
-
-## Sobre subir o ambiente
-
-O `docker compose up -d --build` quebrava com `Cannot find module
-'.../маршрутизация.js'`: três arquivos em `api/vendor/` (nomes em cirílico e
-chinês) estavam commitados com o nome corrompido por *mojibake*, enquanto os
-`require` do código apontavam para o nome correto. Renomeados no commit `ee1e6e0`,
-conteúdo intacto. Sem isso a API não sobe.
 
 ---
 ---
