@@ -14,6 +14,9 @@ let ultimoErro: any = null;
 export class EventsGateway {
   private readonly logger = new Logger('EventsGateway');
 
+  private readonly broadcastMs = Number(process.env.POSICOES_BROADCAST_MS ?? 1000);
+  private readonly ultimoBroadcast = new Map<number, number>();
+
   constructor(
     private readonly io: Server,
     private readonly emitter: EventsEmitter,
@@ -104,8 +107,11 @@ export class EventsGateway {
     void this.uploaderVendor.push(a);
     this.exportador.capturar(a);
 
-    const tmp = await this.driverService.listarOnline(pos.cityId);
-    this.emitter.emitEvent('driver.positions', tmp);
+    const agora = Date.now();
+    if (agora - (this.ultimoBroadcast.get(pos.cityId) ?? 0) >= this.broadcastMs) {
+      this.ultimoBroadcast.set(pos.cityId, agora);
+      await this.emitter.emitDriverLocations(pos.cityId);
+    }
   }
 
   private async aoDesconectar(client: Socket): Promise<void> {
@@ -114,7 +120,11 @@ export class EventsGateway {
 
     if (p) {
       await this.driverService.desconectar(p.driverId);
-      await this.emitter.emitDriverLocations(p.cityId);
+      const agora = Date.now();
+      if (agora - (this.ultimoBroadcast.get(p.cityId) ?? 0) >= this.broadcastMs) {
+        this.ultimoBroadcast.set(p.cityId, agora);
+        await this.emitter.emitDriverLocations(p.cityId);
+      }
       this.logger.info(`motorista ${p.driverId} desconectado`);
     }
 

@@ -52,6 +52,7 @@ services:
       FLEET_SIZE: 20
       FLEET_PING_MS: 2000
       LOG_LEVEL: info
+      POSICOES_BROADCAST_MS: 500
     ports:
       - "3000:3000"
     depends_on:
